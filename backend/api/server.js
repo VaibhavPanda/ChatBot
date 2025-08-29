@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
 import multer from "multer";
-import fs from "fs";
 import pdfParse from "pdf-parse-fixed";
 import Tesseract from "tesseract.js";
 import mammoth from "mammoth";
@@ -13,7 +12,9 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
-const upload = multer({ dest: "uploads/" });
+
+// ✅ Use memory storage (no disk writes)
+const upload = multer({ storage: multer.memoryStorage() });
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: "models/gemini-2.5-flash-lite" });
@@ -40,21 +41,18 @@ app.post("/upload", upload.single("file"), async (req, res) => {
   currentPdfContent = "";
 
   try {
-    const filePath = req.file.path;
     const mimeType = req.file.mimetype;
     let extractedText = "";
 
     if (mimeType.includes("pdf")) {
-      const dataBuffer = fs.readFileSync(filePath);
-      const pdfData = await pdfParse(dataBuffer);
+      const pdfData = await pdfParse(req.file.buffer);
       extractedText = (pdfData.text || "").trim();
     } else if (mimeType.includes("word") || mimeType.includes("docx")) {
-      const data = await mammoth.extractRawText({ path: filePath });
+      const data = await mammoth.extractRawText({ buffer: req.file.buffer });
       extractedText = data.value;
     }
 
     currentPdfContent = extractedText || "";
-    fs.unlinkSync(filePath);
     res.json({ reply: "PDF uploaded. You can now ask questions about it." });
   } catch (error) {
     console.error("Error processing PDF:", error);
@@ -69,7 +67,8 @@ app.post("/ask-pdf", async (req, res) => {
     return res.json({ reply: "No PDF content loaded. Please upload a PDF first." });
   }
   const prompt = `
-Use the following extracted text from a PDF to answer the user's question. If not found, reply 'Not found in PDF'.
+Use the following extracted text from a PDF to answer the user's question. 
+If not found, reply 'Not found in PDF'.
 ---
 ${currentPdfContent}
 ---
@@ -79,7 +78,7 @@ Question: ${question}
     const result = await model.generateContent(prompt);
     res.json({ reply: result.response.text() });
   } catch (error) {
-    console.error(error);
+    console.error("Error answering PDF:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -90,10 +89,8 @@ app.post("/upload-image", upload.single("file"), async (req, res) => {
   currentImageContent = "";
 
   try {
-    const filePath = req.file.path;
-    const { data: { text } } = await Tesseract.recognize(filePath, "eng");
+    const { data: { text } } = await Tesseract.recognize(req.file.buffer, "eng");
     currentImageContent = text.trim();
-    fs.unlinkSync(filePath);
     res.json({ reply: "Image uploaded. You can now ask questions about the text in it." });
   } catch (error) {
     console.error("Error processing image:", error);
@@ -108,7 +105,8 @@ app.post("/ask-image", async (req, res) => {
     return res.json({ reply: "No image content loaded. Please upload an image first." });
   }
   const prompt = `
-Use the extracted text from an image to answer the question. If answer not in text say "Not found in image".
+Use the extracted text from an image to answer the question. 
+If answer not in text say "Not found in image".
 Text:
 ${currentImageContent}
 Question: ${question}
@@ -117,9 +115,15 @@ Question: ${question}
     const result = await model.generateContent(prompt);
     res.json({ reply: result.response.text() });
   } catch (error) {
-    console.error(error);
+    console.error("Error answering image:", error);
     res.status(500).json({ error: error.message });
   }
+});
+
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
 });
 
 export default app;
