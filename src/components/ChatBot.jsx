@@ -1,5 +1,5 @@
   import React, { useState, useEffect, useRef } from "react";
-  import "./ChatBot.css";
+  import "./Chatbot.css";
   import botAvatar from "../assets/chatbotavatar.jpeg";
   import userAvatar from "../assets/useravatar.png";
 
@@ -247,3 +247,4 @@
       </div>
     );
   }
+
