@@ -10,11 +10,14 @@ export default function ChatBot() {
   const [error, setError] = useState(null);
   const [darkMode, setDarkMode] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
-  const [pdfMode, setPdfMode] = useState(false);        // PDF uploaded flag
-  const [imageMode, setImageMode] = useState(false);    // Image uploaded flag
+  const [pdfMode, setPdfMode] = useState(false);
+  const [imageMode, setImageMode] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // 🌐 Render Backend URL (replace if your Render app link changes)
+  const BACKEND_URL = "https://chatbot-1-zkc1.onrender.com";
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -32,7 +35,7 @@ export default function ChatBot() {
     </div>
   );
 
-  // Updated sendMessage : pdf & image logic
+  // 🚀 Send message to backend
   const sendMessage = async () => {
     if (!input.trim()) return;
     const userMessage = input.trim();
@@ -40,10 +43,18 @@ export default function ChatBot() {
     setError(null);
     setIsTyping(true);
 
-    setSessions(prev => prev.map((session, idx) => idx === activeSession ? {
-      ...session,
-      messages: [...session.messages, { role: "user", content: userMessage }, { role: "assistant", typing: true }]
-    } : session));
+    setSessions(prev => prev.map((session, idx) =>
+      idx === activeSession
+        ? {
+            ...session,
+            messages: [
+              ...session.messages,
+              { role: "user", content: userMessage },
+              { role: "assistant", typing: true }
+            ]
+          }
+        : session
+    ));
 
     try {
       let endpoint = "/chat";
@@ -57,30 +68,41 @@ export default function ChatBot() {
         payload = { question: userMessage };
       }
 
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
+
       if (!response.ok) throw new Error("Server error");
       const data = await response.json();
 
-      setSessions(prev => prev.map((session, idx) => idx === activeSession ? {
-        ...session,
-        messages: session.messages.map(msg => msg.typing ? { role: "assistant", content: data.reply } : msg)
-      } : session));
+      setSessions(prev => prev.map((session, idx) =>
+        idx === activeSession
+          ? {
+              ...session,
+              messages: session.messages.map(msg =>
+                msg.typing ? { role: "assistant", content: data.reply } : msg
+              )
+            }
+          : session
+      ));
     } catch {
       setError("⚠️ No response from AI. Please try again.");
-      setSessions(prev => prev.map((session, idx) => idx === activeSession ? {
-        ...session,
-        messages: session.messages.filter(m => !m.typing)
-      } : session));
+      setSessions(prev => prev.map((session, idx) =>
+        idx === activeSession
+          ? {
+              ...session,
+              messages: session.messages.filter(m => !m.typing)
+            }
+          : session
+      ));
     } finally {
       setIsTyping(false);
     }
   };
 
-  // Updated File Upload: detects image vs pdf
+  // 📂 File Upload
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -89,15 +111,23 @@ export default function ChatBot() {
     const isImage = file.type.startsWith("image/");
     const isPdf = file.type.includes("pdf");
 
-    // Add a message that PDF or Image was uploaded
-    setSessions(prev => prev.map((session, idx) => idx === activeSession ? {
-      ...session,
-      messages: [
-        ...session.messages,
-        { role: "user", fileName: file.name, fileType: file.type, preview },
-        { role: "assistant", content: isPdf ? "PDF uploaded. You can now ask questions about it." : "Image uploaded. You can now ask questions about it." }
-      ]
-    } : session));
+    setSessions(prev => prev.map((session, idx) =>
+      idx === activeSession
+        ? {
+            ...session,
+            messages: [
+              ...session.messages,
+              { role: "user", fileName: file.name, fileType: file.type, preview },
+              {
+                role: "assistant",
+                content: isPdf
+                  ? "PDF uploaded. You can now ask questions about it."
+                  : "Image uploaded. You can now ask questions about it."
+              }
+            ]
+          }
+        : session
+    ));
 
     if (isPdf) {
       setPdfMode(true);
@@ -112,22 +142,24 @@ export default function ChatBot() {
       const formData = new FormData();
       formData.append("file", file);
       const endpoint = isPdf ? "/upload" : "/upload-image";
-      await fetch(`http://localhost:5000${endpoint}`, { method: "POST", body: formData });
+      await fetch(`${BACKEND_URL}${endpoint}`, { method: "POST", body: formData });
     } catch {
       setError("⚠️ File upload failed.");
     }
   };
 
+  // ➕ New Chat
   const newChat = () => {
     const newSession = { id: sessions.length + 1, messages: [] };
     setSessions(prev => [...prev, newSession]);
     setActiveSession(sessions.length);
     setInput("");
     setError(null);
-    setPdfMode(false);   // reset both modes
+    setPdfMode(false);
     setImageMode(false);
   };
 
+  // ❌ Clear Chats
   const clearAllSessions = () => {
     setSessions([{ id: 1, messages: [] }]);
     setActiveSession(0);
@@ -137,11 +169,14 @@ export default function ChatBot() {
     setImageMode(false);
   };
 
+  // 💾 Export Chat
   const exportChat = () => {
     const text = getCurrentMessages()
-      .map(m => m.fileName
-        ? `You uploaded: ${m.fileName}`
-        : `${m.role === "user" ? "You" : "Bot"}: ${m.content}`)
+      .map(m =>
+        m.fileName
+          ? `You uploaded: ${m.fileName}`
+          : `${m.role === "user" ? "You" : "Bot"}: ${m.content}`
+      )
       .join("\n");
 
     const blob = new Blob([text], { type: "text/plain" });
@@ -155,7 +190,9 @@ export default function ChatBot() {
     <div className={`chatbot-app ${darkMode ? "dark" : "light"}`}>
       {/* Sidebar */}
       <aside className="sidebar">
-        <h2 className="bot-title"><img src={botAvatar} className="heading-avatar"></img> ChatBot</h2>
+        <h2 className="bot-title">
+          <img src={botAvatar} className="heading-avatar" alt="bot" /> ChatBot
+        </h2>
         <div className="session-list">
           {sessions.map((s, idx) => (
             <button
@@ -230,7 +267,7 @@ export default function ChatBot() {
             placeholder="Type your message..."
           />
 
-          {/* Hidden file input */}
+          {/* File Upload */}
           <input
             type="file"
             id="file-upload"
@@ -247,4 +284,3 @@ export default function ChatBot() {
     </div>
   );
 }
-
