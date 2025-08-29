@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import "./Chatbot.css";
 import botAvatar from "../assets/chatbotavatar.jpeg";
 import userAvatar from "../assets/useravatar.png";
 
@@ -16,7 +15,6 @@ export default function ChatBot() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // 🌐 Render Backend URL (replace if your Render app link changes)
   const BACKEND_URL = "https://chatbot-1-zkc1.onrender.com";
 
   useEffect(() => {
@@ -35,7 +33,6 @@ export default function ChatBot() {
     </div>
   );
 
-  // 🚀 Send message to backend
   const sendMessage = async () => {
     if (!input.trim()) return;
     const userMessage = input.trim();
@@ -102,7 +99,6 @@ export default function ChatBot() {
     }
   };
 
-  // 📂 File Upload
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -148,7 +144,6 @@ export default function ChatBot() {
     }
   };
 
-  // ➕ New Chat
   const newChat = () => {
     const newSession = { id: sessions.length + 1, messages: [] };
     setSessions(prev => [...prev, newSession]);
@@ -159,7 +154,6 @@ export default function ChatBot() {
     setImageMode(false);
   };
 
-  // ❌ Clear Chats
   const clearAllSessions = () => {
     setSessions([{ id: 1, messages: [] }]);
     setActiveSession(0);
@@ -169,7 +163,6 @@ export default function ChatBot() {
     setImageMode(false);
   };
 
-  // 💾 Export Chat
   const exportChat = () => {
     const text = getCurrentMessages()
       .map(m =>
@@ -188,7 +181,6 @@ export default function ChatBot() {
 
   return (
     <div className={`chatbot-app ${darkMode ? "dark" : "light"}`}>
-      {/* Sidebar */}
       <aside className="sidebar">
         <h2 className="bot-title">
           <img src={botAvatar} className="heading-avatar" alt="bot" /> ChatBot
@@ -213,7 +205,6 @@ export default function ChatBot() {
         </div>
       </aside>
 
-      {/* Main Chat Area */}
       <main className="chat-area">
         <div className="mode-toggle">
           <button onClick={() => setDarkMode(p => !p)}>
@@ -267,11 +258,9 @@ export default function ChatBot() {
             placeholder="Type your message..."
           />
 
-          {/* File Upload */}
           <input
             type="file"
             id="file-upload"
-            style={{ display: "none" }}
             onChange={handleFileUpload}
           />
 
