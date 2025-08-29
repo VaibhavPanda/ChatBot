@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon server.js"
+    "start": "server"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
