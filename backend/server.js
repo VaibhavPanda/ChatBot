@@ -12,7 +12,9 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
-const upload = multer({ dest: "uploads/" });
+
+// use /tmp for uploads (Vercel only allows this dir for writing)
+const upload = multer({ dest: "/tmp" });
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: "models/gemini-2.5-flash-lite" });
@@ -36,7 +38,7 @@ app.post("/chat", async (req, res) => {
 // PDF Upload
 app.post("/upload", upload.single("file"), async (req, res) => {
   currentImageContent = ""; // reset
-  currentPdfContent   = "";
+  currentPdfContent = "";
 
   try {
     const filePath = req.file.path;
@@ -53,7 +55,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     }
 
     currentPdfContent = extractedText || "";
-    fs.unlinkSync(filePath);
+    fs.unlinkSync(filePath); // cleanup
     res.json({ reply: "PDF uploaded. You can now ask questions about it." });
   } catch (error) {
     console.error("Error processing PDF:", error);
@@ -68,7 +70,8 @@ app.post("/ask-pdf", async (req, res) => {
     return res.json({ reply: "No PDF content loaded. Please upload a PDF first." });
   }
   const prompt = `
-Use the following extracted text from a PDF to answer the user's question. If not found, reply 'Not found in PDF'.
+Use the following extracted text from a PDF to answer the user's question. 
+If not found, reply 'Not found in PDF'.
 ---
 ${currentPdfContent}
 ---
@@ -85,14 +88,14 @@ Question: ${question}
 
 // Upload Image
 app.post("/upload-image", upload.single("file"), async (req, res) => {
-  currentPdfContent   = ""; // reset PDF
+  currentPdfContent = ""; // reset PDF
   currentImageContent = "";
 
   try {
     const filePath = req.file.path;
     const { data: { text } } = await Tesseract.recognize(filePath, "eng");
     currentImageContent = text.trim();
-    fs.unlinkSync(filePath);
+    fs.unlinkSync(filePath); // cleanup
     res.json({ reply: "Image uploaded. You can now ask questions about the text in it." });
   } catch (error) {
     console.error("Error processing image:", error);
@@ -107,7 +110,8 @@ app.post("/ask-image", async (req, res) => {
     return res.json({ reply: "No image content loaded. Please upload an image first." });
   }
   const prompt = `
-Use the extracted text from an image to answer the question. If answer not in text say "Not found in image".
+Use the extracted text from an image to answer the question. 
+If answer not in text say "Not found in image".
 Text:
 ${currentImageContent}
 Question: ${question}
@@ -121,4 +125,4 @@ Question: ${question}
   }
 });
 
-app.listen(5000, () => console.log("✅ Server running on port 5000"));
+export default app;
