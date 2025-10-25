@@ -66,13 +66,6 @@ npm start                    # Run React app
 
 ---
 
-## ✅ Final
-
-- Backend → http://localhost:5000
-- Frontend → http://localhost:<PORT NUMBER>
-
----
-
 ## Author
 
 Vaibhav Panda
