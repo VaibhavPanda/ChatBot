@@ -3,6 +3,10 @@ import "./Chatbot.css";
 import botAvatar from "../assets/chatbotavatar.jpeg";
 import userAvatar from "../assets/useravatar.png";
 
+// KaTeX for rendering LaTeX on the client
+import { InlineMath, BlockMath } from "react-katex";
+import "katex/dist/katex.min.css";
+
 export default function ChatBot() {
   const [sessions, setSessions] = useState([{ id: 1, messages: [] }]);
   const [activeSession, setActiveSession] = useState(0);
@@ -35,6 +39,53 @@ export default function ChatBot() {
     </div>
   );
 
+  // Helper: render content and LaTeX blocks safely using react-katex
+  const renderMessageContent = (text) => {
+    if (!text && text !== "") return null;
+
+    // If the content is not a string just render it directly
+    if (typeof text !== "string") return <span>{String(text)}</span>;
+
+    // Regex to find $$...$$ (display) and \( ... \) (inline). Also supports $...$ inline.
+    // Note: we prioritize $$ (display) and \( \) (inline) as recommended.
+    const regex = /(\$\$[\s\S]*?\$\$|\\\([\s\S]*?\\\)|\$(?!\s)(?:\\.|[^\$\\])+\$)/g;
+
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      const idx = match.index;
+      if (idx > lastIndex) {
+        parts.push({ type: "text", content: text.slice(lastIndex, idx) });
+      }
+      const token = match[0];
+      if (token.startsWith("$$") && token.endsWith("$$")) {
+        parts.push({ type: "display", content: token.slice(2, -2).trim() });
+      } else if (token.startsWith("\\(") && token.endsWith("\\)")) {
+        parts.push({ type: "inline", content: token.slice(2, -2).trim() });
+      } else if (token.startsWith("$") && token.endsWith("$")) {
+        parts.push({ type: "inline", content: token.slice(1, -1).trim() });
+      } else {
+        parts.push({ type: "text", content: token });
+      }
+      lastIndex = regex.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push({ type: "text", content: text.slice(lastIndex) });
+    }
+
+    return parts.map((p, i) => {
+      if (p.type === "text") return <span key={i}>{p.content}</span>;
+      if (p.type === "inline")
+        return <InlineMath key={i} math={p.content} />;
+      if (p.type === "display")
+        return <div key={i} style={{ margin: "8px 0" }}><BlockMath math={p.content} /></div>;
+      return null;
+    });
+  };
+
   const sendMessage = async () => {
     if (!input.trim()) return;
     const userMessage = input.trim();
@@ -42,6 +93,7 @@ export default function ChatBot() {
     setError(null);
     setIsTyping(true);
 
+    // Add user message + assistant typing placeholder
     setSessions(prev => prev.map((session, idx) => idx === activeSession ? {
       ...session,
       messages: [...session.messages, { role: "user", content: userMessage }, { role: "assistant", typing: true }]
@@ -68,11 +120,15 @@ export default function ChatBot() {
       if (!response.ok) throw new Error("Server error");
       const data = await response.json();
 
+      // data.reply should be a plain string with LaTeX using single backslashes, e.g. \frac{1}{2}
+      const replyText = data.reply ?? "No reply";
+
       setSessions(prev => prev.map((session, idx) => idx === activeSession ? {
         ...session,
-        messages: session.messages.map(msg => msg.typing ? { role: "assistant", content: data.reply } : msg)
+        messages: session.messages.map(msg => msg.typing ? { role: "assistant", content: replyText } : msg)
       } : session));
-    } catch {
+    } catch (err) {
+      console.error(err);
       setError("⚠️ No response from AI. Please try again.");
       setSessions(prev => prev.map((session, idx) => idx === activeSession ? {
         ...session,
@@ -113,8 +169,22 @@ export default function ChatBot() {
       const formData = new FormData();
       formData.append("file", file);
       const endpoint = isPdf ? "/upload" : "/upload-image";
-      await fetch(`${BACKEND_URL}${endpoint}`, { method: "POST", body: formData });
-    } catch {
+      const response = await fetch(`${BACKEND_URL}${endpoint}`, { method: "POST", body: formData });
+
+      if (!response.ok) {
+        setError("⚠️ File upload failed.");
+      } else {
+        // Optional: read backend reply and append as assistant message (backend already responds)
+        const data = await response.json();
+        if (data?.reply) {
+          setSessions(prev => prev.map((session, idx) => idx === activeSession ? {
+            ...session,
+            messages: [...session.messages, { role: "assistant", content: data.reply }]
+          } : session));
+        }
+      }
+    } catch (err) {
+      console.error(err);
       setError("⚠️ File upload failed.");
     }
   };
@@ -156,7 +226,7 @@ export default function ChatBot() {
     <div className={`chatbot-app ${darkMode ? "dark" : "light"}`}>
       {/* Sidebar */}
       <aside className="sidebar">
-        <h2 className="bot-title"><img src={botAvatar} className="heading-avatar"></img> ChatBot</h2>
+        <h2 className="bot-title"><img src={botAvatar} className="heading-avatar" alt="bot" /> ChatBot</h2>
         <div className="session-list">
           {sessions.map((s, idx) => (
             <button
@@ -207,7 +277,7 @@ export default function ChatBot() {
                     <span className="file-name">{m.fileName}</span>
                   </div>
                 ) : (
-                  m.content
+                  renderMessageContent(m.content)
                 )}
               </div>
             </div>
@@ -247,4 +317,3 @@ export default function ChatBot() {
     </div>
   );
 }
-
