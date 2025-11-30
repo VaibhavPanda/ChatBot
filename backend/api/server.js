@@ -26,12 +26,35 @@ app.get("/", (req, res) => {
   res.send("✅ Backend is running successfully 🚀");
 });
 
+/* ---------- Helper: strong LaTeX instruction ---------- */
+const latexInstruction = `
+If the answer includes mathematical notation, use LaTeX. 
+Wrap display math in $$...$$ and inline math in \\(...\\) (or $...$ for inline).
+Do NOT escape backslashes (produce single backslashes, e.g. \\frac{1}{2}).
+Return the answer as plain text only.
+`;
+
 /* ---------- Normal Chat ---------- */
 app.post("/chat", async (req, res) => {
   try {
     const { message } = req.body;
-    const result = await model.generateContent(message);
-    const reply = result.response.text();
+
+    // Add a clear instruction so model consistently emits LaTeX when math is present
+    const prompt = `
+You are a helpful assistant.
+${latexInstruction}
+User: ${message}
+`;
+
+    const result = await model.generateContent(prompt);
+    let reply = result.response.text();
+
+    // Fallback: if the model somehow returns double-escaped backslashes (\\), convert to single.
+    // This is a safe fallback but ideally you should inspect logs and remove double-escaping at the source.
+    if (reply.includes("\\\\")) {
+      reply = reply.replace(/\\\\/g, "\\");
+    }
+
     res.json({ reply });
   } catch (error) {
     console.error("Error calling Google API:", error);
@@ -73,16 +96,23 @@ app.post("/ask-pdf", async (req, res) => {
   if (!currentPdfContent) {
     return res.json({ reply: "No PDF content loaded. Please upload a PDF first." });
   }
+
   const prompt = `
 Use the following extracted text from a PDF to answer the user's question. If not found, reply 'Not found in PDF'.
+${latexInstruction}
 ---
 ${currentPdfContent}
 ---
 Question: ${question}
 `;
+
   try {
     const result = await model.generateContent(prompt);
-    res.json({ reply: result.response.text() });
+    let reply = result.response.text();
+    if (reply.includes("\\\\")) {
+      reply = reply.replace(/\\\\/g, "\\");
+    }
+    res.json({ reply });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
@@ -112,15 +142,22 @@ app.post("/ask-image", async (req, res) => {
   if (!currentImageContent) {
     return res.json({ reply: "No image content loaded. Please upload an image first." });
   }
+
   const prompt = `
 Use the extracted text from an image to answer the question. If answer not in text say "Not found in image".
+${latexInstruction}
 Text:
 ${currentImageContent}
 Question: ${question}
 `;
+
   try {
     const result = await model.generateContent(prompt);
-    res.json({ reply: result.response.text() });
+    let reply = result.response.text();
+    if (reply.includes("\\\\")) {
+      reply = reply.replace(/\\\\/g, "\\");
+    }
+    res.json({ reply });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
