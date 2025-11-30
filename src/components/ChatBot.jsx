@@ -3,8 +3,11 @@ import "./Chatbot.css";
 import botAvatar from "../assets/chatbotavatar.jpeg";
 import userAvatar from "../assets/useravatar.png";
 
-// KaTeX for rendering LaTeX on the client
-import { InlineMath, BlockMath } from "react-katex";
+// Markdown + Math rendering
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 
 export default function ChatBot() {
@@ -39,51 +42,33 @@ export default function ChatBot() {
     </div>
   );
 
-  // Helper: render content and LaTeX blocks safely using react-katex
+  /**
+   * renderMessageContent
+   *
+   * Uses react-markdown + remark-gfm + remark-math + rehype-katex to render:
+   * - Markdown (bold, italic, lists, etc.)
+   * - Inline LaTeX ($...$) and Display LaTeX ($$...$$)
+   *
+   * Security note: react-markdown by default does not render raw HTML.
+   * We're not enabling rehype-raw here (which would allow raw HTML).
+   */
   const renderMessageContent = (text) => {
-    if (!text && text !== "") return null;
+    if (text === null || text === undefined) return null;
 
-    // If the content is not a string just render it directly
+    // If content is not a string, just display its string representation
     if (typeof text !== "string") return <span>{String(text)}</span>;
 
-    // Regex to find $$...$$ (display) and \( ... \) (inline). Also supports $...$ inline.
-    // Note: we prioritize $$ (display) and \( \) (inline) as recommended.
-    const regex = /(\$\$[\s\S]*?\$\$|\\\([\s\S]*?\\\)|\$(?!\s)(?:\\.|[^\$\\])+\$)/g;
-
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = regex.exec(text)) !== null) {
-      const idx = match.index;
-      if (idx > lastIndex) {
-        parts.push({ type: "text", content: text.slice(lastIndex, idx) });
-      }
-      const token = match[0];
-      if (token.startsWith("$$") && token.endsWith("$$")) {
-        parts.push({ type: "display", content: token.slice(2, -2).trim() });
-      } else if (token.startsWith("\\(") && token.endsWith("\\)")) {
-        parts.push({ type: "inline", content: token.slice(2, -2).trim() });
-      } else if (token.startsWith("$") && token.endsWith("$")) {
-        parts.push({ type: "inline", content: token.slice(1, -1).trim() });
-      } else {
-        parts.push({ type: "text", content: token });
-      }
-      lastIndex = regex.lastIndex;
-    }
-
-    if (lastIndex < text.length) {
-      parts.push({ type: "text", content: text.slice(lastIndex) });
-    }
-
-    return parts.map((p, i) => {
-      if (p.type === "text") return <span key={i}>{p.content}</span>;
-      if (p.type === "inline")
-        return <InlineMath key={i} math={p.content} />;
-      if (p.type === "display")
-        return <div key={i} style={{ margin: "8px 0" }}><BlockMath math={p.content} /></div>;
-      return null;
-    });
+    // Quick fallback: if string is short, just return plain span (keeps UI snappy).
+    // But most messages will be processed by react-markdown.
+    return (
+      <ReactMarkdown
+        children={text}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        // Do not enable rehype-raw unless you trust the source (XSS risk).
+        // If you absolutely must render HTML from the model, sanitize it first.
+      />
+    );
   };
 
   const sendMessage = async () => {
@@ -120,7 +105,7 @@ export default function ChatBot() {
       if (!response.ok) throw new Error("Server error");
       const data = await response.json();
 
-      // data.reply should be a plain string with LaTeX using single backslashes, e.g. \frac{1}{2}
+      // data.reply should be a Markdown string possibly containing LaTeX
       const replyText = data.reply ?? "No reply";
 
       setSessions(prev => prev.map((session, idx) => idx === activeSession ? {
@@ -174,7 +159,6 @@ export default function ChatBot() {
       if (!response.ok) {
         setError("⚠️ File upload failed.");
       } else {
-        // Optional: read backend reply and append as assistant message (backend already responds)
         const data = await response.json();
         if (data?.reply) {
           setSessions(prev => prev.map((session, idx) => idx === activeSession ? {
